@@ -38,6 +38,16 @@ final class TimeZoneStore {
         if primaryID == id { primaryID = selectedIDs.first ?? "Etc/GMT" }
     }
 
+    func moveUp(_ index: Int) {
+        guard index > 0 else { return }
+        selectedIDs.swapAt(index, index - 1)
+    }
+
+    func moveDown(_ index: Int) {
+        guard index < selectedIDs.count - 1 else { return }
+        selectedIDs.swapAt(index, index + 1)
+    }
+
     func makePrimary(_ id: String) {
         primaryID = id
     }

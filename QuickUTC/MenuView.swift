@@ -7,10 +7,40 @@ struct MenuView: View {
     @State private var now = Date()
     @State private var showingSearch = false
 
+    @State private var editing = false
+    @State private var sortAscending = true
+
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Header with sort & edit
+            HStack {
+                Text("QuickUTC")
+                    .font(.headline)
+                Spacer()
+
+                Menu {
+                    Button { sortBy(.name, ascending: true) } label: { Label("Name ↑", systemImage: "textformat") }
+                    Button { sortBy(.name, ascending: false) } label: { Label("Name ↓", systemImage: "textformat") }
+                    Divider()
+                    Button { sortBy(.offset, ascending: true) } label: { Label("UTC Offset ↑", systemImage: "clock") }
+                    Button { sortBy(.offset, ascending: false) } label: { Label("UTC Offset ↓", systemImage: "clock") }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+
+                Button { editing.toggle() } label: {
+                    Image(systemName: editing ? "checkmark.circle" : "pencil.circle")
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+
             // Selected clocks
             clockList
 
@@ -60,8 +90,40 @@ struct MenuView: View {
     // MARK: - Clock List
 
     private var clockList: some View {
-        ForEach(store.selectedIDs, id: \.self) { id in
+        ForEach(Array(store.selectedIDs.enumerated()), id: \.element) { index, id in
             HStack {
+                if editing {
+                    Button { 
+                        withAnimation {
+                            let i = store.selectedIDs.firstIndex(of: id)!
+                            if i > 0 { store.selectedIDs.swapAt(i, i - 1) }
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.caption)
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(index == 0)
+                    .opacity(index == 0 ? 0.3 : 1)
+
+                    Button {
+                        withAnimation {
+                            let i = store.selectedIDs.firstIndex(of: id)!
+                            if i < store.selectedIDs.count - 1 { store.selectedIDs.swapAt(i, i + 1) }
+                        }
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.caption)
+                            .frame(width: 20, height: 20)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(index == store.selectedIDs.count - 1)
+                    .opacity(index == store.selectedIDs.count - 1 ? 0.3 : 1)
+                }
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(cityName(for: id))
                         .font(.headline)
@@ -76,28 +138,28 @@ struct MenuView: View {
                     .font(.system(.title2, design: .rounded))
                     .monospacedDigit()
 
-                // Primary indicator
-                if id == store.primaryID {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(.yellow)
-                        .font(.caption)
-                } else {
-                    Button { store.makePrimary(id) } label: {
-                        Image(systemName: "star")
+                if editing {
+                    if id == store.primaryID {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
                             .font(.caption)
+                    } else {
+                        Button { store.makePrimary(id) } label: {
+                            Image(systemName: "star")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Set as menu bar clock")
                     }
-                    .buttonStyle(.plain)
-                    .help("Set as menu bar clock")
-                }
 
-                // Remove
-                if store.selectedIDs.count > 1 {
-                    Button { store.remove(id) } label: {
-                        Image(systemName: "minus.circle")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                    if store.selectedIDs.count > 1 {
+                        Button { store.remove(id) } label: {
+                            Image(systemName: "xmark.circle")
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal)
@@ -173,10 +235,34 @@ struct MenuView: View {
 
     private func offsetLabel(for id: String) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
-        let abbr = tz.abbreviation(for: now) ?? ""
         let seconds = tz.secondsFromGMT()
         let sign = seconds >= 0 ? "+" : "-"
         let abs = abs(seconds)
-        return "\(abbr) UTC\(sign)\(abs / 3600):\(String(format: "%02d", (abs % 3600) / 60))"
+        let offset = String(format: "UTC%@%d:%02d", sign, abs / 3600, (abs % 3600) / 60)
+        if let abbr = tz.abbreviation(for: now), !abbr.hasPrefix("GMT") {
+            return "\(abbr) \(offset)"
+        }
+        return offset
+    }
+
+    // MARK: - Sorting
+
+    private enum SortKey { case name, offset }
+
+    private func sortBy(_ key: SortKey, ascending: Bool) {
+        withAnimation {
+            store.selectedIDs.sort { a, b in
+                let result: Bool
+                switch key {
+                case .name:
+                    result = cityName(for: a) < cityName(for: b)
+                case .offset:
+                    let sa = TimeZone(identifier: a)?.secondsFromGMT() ?? 0
+                    let sb = TimeZone(identifier: b)?.secondsFromGMT() ?? 0
+                    result = sa < sb
+                }
+                return ascending ? result : !result
+            }
+        }
     }
 }
