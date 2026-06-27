@@ -9,40 +9,28 @@ struct MenuView: View {
 
     @State private var editing = false
     @State private var sortAscending = true
+    @State private var sortLabel = "Custom"
+    @State private var showQuitConfirm = false
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header with sort & edit
+            // Header
             HStack {
                 Text("QuickUTC")
                     .font(.headline)
                 Spacer()
-
-                Button { store.collapsed.toggle() } label: {
-                    Image(systemName: store.collapsed ? "eye.slash" : "eye")
-                }
-                .buttonStyle(.plain)
-                .help(store.collapsed ? "Show Clock" : "Hide Clock")
-
-                Menu {
-                    Button { sortBy(.name, ascending: true) } label: { Label("Name ↑", systemImage: "textformat") }
-                    Button { sortBy(.name, ascending: false) } label: { Label("Name ↓", systemImage: "textformat") }
-                    Divider()
-                    Button { sortBy(.offset, ascending: true) } label: { Label("UTC Offset ↑", systemImage: "clock") }
-                    Button { sortBy(.offset, ascending: false) } label: { Label("UTC Offset ↓", systemImage: "clock") }
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-
-                Button { editing.toggle() } label: {
+                Button { withAnimation { editing.toggle() } } label: {
                     Image(systemName: editing ? "checkmark.circle" : "pencil.circle")
                 }
                 .buttonStyle(.plain)
+
+                Button { NSApplication.shared.terminate(nil) } label: {
+                    Image(systemName: "power")
+                }
+                .buttonStyle(.plain)
+                .help("Quit QuickUTC")
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -52,43 +40,68 @@ struct MenuView: View {
 
             Divider().padding(.vertical, 8)
 
-            // Add timezone button / search
-            if showingSearch {
-                searchSection
-            } else {
-                Button { showingSearch = true } label: {
-                    Label("Add Timezone", systemImage: "plus.circle")
+            if editing {
+                // Edit-mode controls
+                Button { store.collapsed.toggle() } label: {
+                    Label(store.collapsed ? "Show Clock" : "Hide Clock", systemImage: store.collapsed ? "eye" : "eye.slash")
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal)
-            }
 
-            Divider().padding(.vertical, 8)
+                Divider().padding(.vertical, 8)
 
-            // Label style picker
-            HStack {
-                Text("Menu bar label:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Picker("", selection: Bindable(store).labelStyle) {
-                    Text("UTC+").tag("utcOffset")
-                    Text("City").tag("cityName")
-                    Text("Abbr").tag("abbreviation")
-                    Text("All").tag("both")
+                // Sort
+                HStack {
+                    Menu {
+                        Button { sortBy(.name, ascending: true) } label: { Label("Name ↑", systemImage: "textformat") }
+                        Button { sortBy(.name, ascending: false) } label: { Label("Name ↓", systemImage: "textformat") }
+                        Divider()
+                        Button { sortBy(.offset, ascending: true) } label: { Label("UTC Offset ↑", systemImage: "clock") }
+                        Button { sortBy(.offset, ascending: false) } label: { Label("UTC Offset ↓", systemImage: "clock") }
+                    } label: {
+                        Label("Sort Timezones", systemImage: "arrow.up.arrow.down")
+                    }
+                    .buttonStyle(.plain)
+                    .menuIndicator(.hidden)
+
+                    Spacer()
+
+                    Text(sortLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            .padding(.horizontal)
+                .padding(.horizontal)
 
-            Divider().padding(.vertical, 8)
+                Divider().padding(.vertical, 8)
 
-            Button { NSApplication.shared.terminate(nil) } label: {
-                Label("Quit QuickUTC", systemImage: "xmark.circle")
+                // Add timezone
+                if showingSearch {
+                    searchSection
+                } else {
+                    Button { showingSearch = true } label: {
+                        Label("Add Timezone", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
+                }
+            } else {
+                // Normal mode: just label picker and quit
+                HStack {
+                    Text("Menu bar label:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("", selection: Bindable(store).labelStyle) {
+                        Text("UTC+").tag("utcOffset")
+                        Text("City").tag("cityName")
+                        Text("Abbr").tag("abbreviation")
+                        Text("All").tag("both")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+                .padding(.horizontal)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal)
         }
         .padding(.vertical, 12)
         .onReceive(timer) { now = $0 }
@@ -105,6 +118,7 @@ struct MenuView: View {
                             let i = store.selectedIDs.firstIndex(of: id)!
                             if i > 0 { store.selectedIDs.swapAt(i, i - 1) }
                         }
+                        sortLabel = "Custom"
                     } label: {
                         Image(systemName: "plus")
                             .font(.caption)
@@ -120,6 +134,7 @@ struct MenuView: View {
                             let i = store.selectedIDs.firstIndex(of: id)!
                             if i < store.selectedIDs.count - 1 { store.selectedIDs.swapAt(i, i + 1) }
                         }
+                        sortLabel = "Custom"
                     } label: {
                         Image(systemName: "minus")
                             .font(.caption)
@@ -271,5 +286,7 @@ struct MenuView: View {
                 return ascending ? result : !result
             }
         }
+        let dir = ascending ? "↑" : "↓"
+        sortLabel = "\(key == .name ? "Name" : "UTC Offset") \(dir)"
     }
 }
