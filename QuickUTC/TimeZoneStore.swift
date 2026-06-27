@@ -22,14 +22,6 @@ final class TimeZoneStore {
         didSet { UserDefaults.standard.set(collapsed, forKey: "collapsed") }
     }
 
-    var use24h: Bool {
-        didSet { UserDefaults.standard.set(use24h, forKey: "use24h") }
-    }
-
-    var compactMode: Bool {
-        didSet { UserDefaults.standard.set(compactMode, forKey: "compactMode") }
-    }
-
     var showOffset: Bool {
         didSet { UserDefaults.standard.set(showOffset, forKey: "showOffset") }
     }
@@ -52,8 +44,6 @@ final class TimeZoneStore {
         self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? Self.utcID
         self.labelStyle = UserDefaults.standard.string(forKey: "labelStyle") ?? "both"
         self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
-        self.use24h = UserDefaults.standard.object(forKey: "use24h") as? Bool ?? true
-        self.compactMode = UserDefaults.standard.bool(forKey: "compactMode")
         self.showOffset = UserDefaults.standard.object(forKey: "showOffset") as? Bool ?? true
         if let data = UserDefaults.standard.data(forKey: "customLabels"),
            let labels = try? JSONDecoder().decode([String: String].self, from: data) {

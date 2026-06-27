@@ -9,7 +9,7 @@ struct MenuView: View {
     @State private var editing = false
     @State private var sortLabel = "Custom"
     @State private var convertInput = ""
-    @State private var convertSourceID: String?
+    @State private var convertSourceID: String? = UserDefaults.standard.string(forKey: "convertSourceTZ")
     @State private var renamingID: String?
     @State private var renameText = ""
 
@@ -65,13 +65,6 @@ struct MenuView: View {
 
     // MARK: - Quick Convert
 
-    private var convertResultIDs: [String] {
-        var ids = store.selectedIDs
-        let local = TimeZone.current.identifier
-        if !ids.contains(local) { ids.insert(local, at: 0) }
-        return ids
-    }
-
     private var convertSourceIDs: [String] {
         var ids = [TimeZone.current.identifier]
         for id in store.selectedIDs where id != TimeZone.current.identifier {
@@ -88,9 +81,17 @@ struct MenuView: View {
             TextField("Type time (e.g. 14:30)", text: $convertInput)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
+            if !convertInput.isEmpty {
+                Button { convertInput = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
             Picker("", selection: Binding(
                 get: { convertSourceID ?? TimeZone.current.identifier },
-                set: { convertSourceID = $0 }
+                set: { convertSourceID = $0; UserDefaults.standard.set($0, forKey: "convertSourceTZ") }
             )) {
                 ForEach(convertSourceIDs, id: \.self) { id in
                     Text(id == TimeZone.current.identifier ? "Local" : displayName(for: id)).tag(id)
@@ -120,24 +121,6 @@ struct MenuView: View {
                     return true
                 }
         }
-    }
-
-    private func compactRow(id: String) -> some View {
-        HStack {
-            Image(systemName: dayNightEmoji(for: id))
-                .font(.caption2)
-            Text(displayName(for: id))
-                .font(.subheadline)
-            Spacer()
-            Text(timeDiff(for: id))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(timeString(for: id))
-                .font(.system(.subheadline, design: .rounded))
-                .monospacedDigit()
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 3)
     }
 
     private func fullRow(index: Int, id: String) -> some View {
@@ -281,6 +264,20 @@ struct MenuView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
+        .background(
+            relativeDayLabel(for: id) != nil
+                ? Color.primary.opacity(0.04)
+                : Color.clear
+        )
+        .cornerRadius(6)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            let text = parseTime(convertInput) != nil
+                ? convertedTime(parseTime(convertInput)!, to: isConvertSource(id) ? TimeZone.current.identifier : id)
+                : timeString(for: id)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(displayName(for: id)), \(timeString(for: id)), \(offsetLabel(for: id)), \(dayNightEmoji(for: id) == "sun.max.fill" ? "daytime" : "nighttime")")
     }
@@ -364,10 +361,6 @@ struct MenuView: View {
 
     // MARK: - Normal Mode
 
-    private var normalModeControls: some View {
-        EmptyView()
-    }
-
     // MARK: - Search
 
     private var searchSection: some View {
@@ -436,9 +429,6 @@ struct MenuView: View {
         FormatterCache.shared.timeFormatter(for: id).string(from: now)
     }
 
-    private func dateString(for id: String) -> String {
-        FormatterCache.shared.dateFormatter(for: id).string(from: now)
-    }
 
     private func offsetLabel(for id: String) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
@@ -485,23 +475,33 @@ struct MenuView: View {
     // MARK: - Quick Convert
 
     private func parseTime(_ input: String) -> (Int, Int)? {
-        let parts = input.trimmingCharacters(in: .whitespaces).split(separator: ":")
-        guard parts.count == 2,
-              let h = Int(parts[0]), let m = Int(parts[1]),
-              h >= 0 && h < 24 && m >= 0 && m < 60 else { return nil }
-        return (h, m)
-    }
+        let s = input.trimmingCharacters(in: .whitespaces).lowercased()
+        if s.isEmpty { return nil }
 
-    private func formatInputTime(_ time: (Int, Int)) -> String {
-        let f = DateFormatter()
-        f.timeStyle = .short
-        f.timeZone = .gmt
-        var cal = Calendar.current
-        cal.timeZone = .gmt
-        if let date = cal.date(from: DateComponents(hour: time.0, minute: time.1)) {
-            return f.string(from: date)
-        }
-        return String(format: "%02d:%02d", time.0, time.1)
+        var h: Int, m: Int
+        let isPM = s.hasSuffix("pm")
+        let isAM = s.hasSuffix("am")
+        let stripped = s.replacingOccurrences(of: "pm", with: "")
+                        .replacingOccurrences(of: "am", with: "")
+                        .trimmingCharacters(in: .whitespaces)
+
+        if stripped.contains(":") {
+            let parts = stripped.split(separator: ":")
+            guard parts.count == 2, let hr = Int(parts[0]), let mn = Int(parts[1]) else { return nil }
+            h = hr; m = mn
+        } else if let num = Int(stripped) {
+            if num >= 0 && num <= 23 && !isPM && !isAM && stripped.count <= 2 {
+                h = num; m = 0
+            } else if stripped.count == 3 || stripped.count == 4 {
+                h = num / 100; m = num % 100
+            } else { return nil }
+        } else { return nil }
+
+        if isPM && h < 12 { h += 12 }
+        if isAM && h == 12 { h = 0 }
+
+        guard h >= 0 && h < 24 && m >= 0 && m < 60 else { return nil }
+        return (h, m)
     }
 
     private func convertedTime(_ time: (Int, Int), to id: String) -> String {
@@ -560,7 +560,6 @@ private final class FormatterCache {
     static let shared = FormatterCache()
 
     private var timeCache: [String: DateFormatter] = [:]
-    private var dateCache: [String: DateFormatter] = [:]
 
     func timeFormatter(for id: String) -> DateFormatter {
         if let f = timeCache[id] { return f }
@@ -568,15 +567,6 @@ private final class FormatterCache {
         f.timeZone = TimeZone(identifier: id) ?? .gmt
         f.timeStyle = .short
         timeCache[id] = f
-        return f
-    }
-
-    func dateFormatter(for id: String) -> DateFormatter {
-        if let f = dateCache[id] { return f }
-        let f = DateFormatter()
-        f.timeZone = TimeZone(identifier: id) ?? .gmt
-        f.dateFormat = "EEE, MMM d"
-        dateCache[id] = f
         return f
     }
 
