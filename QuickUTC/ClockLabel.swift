@@ -52,9 +52,9 @@ struct ClockLabel: View {
         if store.primaryID == TimeZoneStore.utcID { return "UTC" }
         var parts: [String] = []
         switch store.nameStyle {
-        case "city": parts.append(cityName)
-        case "abbreviation": parts.append(abbreviation)
-        default: break
+        case .city: parts.append(cityName)
+        case .abbreviation: parts.append(abbreviation)
+        case .none: break
         }
         if store.showLabelOffset { parts.append(utcOffset) }
         return parts.joined(separator: " ")

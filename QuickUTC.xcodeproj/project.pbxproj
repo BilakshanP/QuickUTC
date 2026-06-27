@@ -8,6 +8,7 @@
 
 /* Begin PBXFileReference section */
 		20F7991D2FED1C4C0065F06D /* QuickUTC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = QuickUTC.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		20A000012FED1C4C0065F06D /* QuickUTCTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = QuickUTCTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +17,22 @@
 			path = QuickUTC;
 			sourceTree = "<group>";
 		};
+		20A000022FED1C4C0065F06D /* QuickUTCTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = QuickUTCTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		20F7991A2FED1C4C0065F06D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		20A000032FED1C4C0065F06D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				20F7991F2FED1C4C0065F06D /* QuickUTC */,
+				20A000022FED1C4C0065F06D /* QuickUTCTests */,
 				20F7991E2FED1C4C0065F06D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				20F7991D2FED1C4C0065F06D /* QuickUTC.app */,
+				20A000012FED1C4C0065F06D /* QuickUTCTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +85,27 @@
 			productReference = 20F7991D2FED1C4C0065F06D /* QuickUTC.app */;
 			productType = "com.apple.product-type.application";
 		};
+		20A000062FED1C4C0065F06D /* QuickUTCTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 20A000092FED1C4C0065F06D /* Build configuration list for PBXNativeTarget "QuickUTCTests" */;
+			buildPhases = (
+				20A000042FED1C4C0065F06D /* Sources */,
+				20A000032FED1C4C0065F06D /* Frameworks */,
+				20A000052FED1C4C0065F06D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				20A000082FED1C4C0065F06D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				20A000022FED1C4C0065F06D /* QuickUTCTests */,
+			);
+			name = QuickUTCTests;
+			productName = QuickUTCTests;
+			productReference = 20A000012FED1C4C0065F06D /* QuickUTCTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +118,10 @@
 				TargetAttributes = {
 					20F7991C2FED1C4C0065F06D = {
 						CreatedOnToolsVersion = 26.5;
+					};
+					20A000062FED1C4C0065F06D = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 20F7991C2FED1C4C0065F06D;
 					};
 				};
 			};
@@ -100,12 +140,20 @@
 			projectRoot = "";
 			targets = (
 				20F7991C2FED1C4C0065F06D /* QuickUTC */,
+				20A000062FED1C4C0065F06D /* QuickUTCTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		20F7991B2FED1C4C0065F06D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		20A000052FED1C4C0065F06D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +170,32 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		20A000042FED1C4C0065F06D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXContainerItemProxy section */
+		20A000072FED1C4C0065F06D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20F799152FED1C4C0065F06D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 20F7991C2FED1C4C0065F06D;
+			remoteInfo = QuickUTC;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		20A000082FED1C4C0065F06D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 20F7991C2FED1C4C0065F06D /* QuickUTC */;
+			targetProxy = 20A000072FED1C4C0065F06D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		20F799262FED1C4D0065F06D /* Debug */ = {
@@ -309,6 +382,44 @@
 			};
 			name = Release;
 		};
+		20A0000A2FED1C4C0065F06D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7UN59MYYFB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.bilakshan.QuickUTCTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuickUTC.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuickUTC";
+			};
+			name = Debug;
+		};
+		20A0000B2FED1C4C0065F06D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7UN59MYYFB;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.bilakshan.QuickUTCTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/QuickUTC.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/QuickUTC";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -326,6 +437,15 @@
 			buildConfigurations = (
 				20F799292FED1C4D0065F06D /* Debug */,
 				20F7992A2FED1C4D0065F06D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		20A000092FED1C4C0065F06D /* Build configuration list for PBXNativeTarget "QuickUTCTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				20A0000A2FED1C4C0065F06D /* Debug */,
+				20A0000B2FED1C4C0065F06D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -12,6 +12,8 @@ struct MenuView: View {
 
     @State private var renamingID: String?
     @State private var renameText = ""
+    @State private var copiedID: String?
+    @State private var hoveredID: String?
 
     @State private var timerCancellable: AnyCancellable?
 
@@ -53,6 +55,7 @@ struct MenuView: View {
         .padding(.vertical, 12)
         .onAppear {
             now = Date()
+            timerCancellable?.cancel()
             timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
                 .autoconnect()
                 .sink { now = $0 }
@@ -78,7 +81,7 @@ struct MenuView: View {
             Image(systemName: "arrow.left.arrow.right")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            TextField("Type time (e.g. 14:30)", text: $convertInput)
+            TextField("e.g. 14:30, 2pm, 0930", text: $convertInput)
                 .textFieldStyle(.roundedBorder)
                 .font(.caption)
             if !convertInput.isEmpty {
@@ -169,6 +172,25 @@ struct MenuView: View {
                             Text(store.displayName(for: id))
                                 .font(.headline)
                         }
+                        if hoveredID == id && !editing {
+                            Button {
+                                let text = parseTime(convertInput) != nil
+                                    ? convertedTime(parseTime(convertInput)!, to: isConvertSource(id) ? TimeZone.current.identifier : id)
+                                    : timeString(for: id)
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(text, forType: .string)
+                                withAnimation { copiedID = id }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                    withAnimation { if copiedID == id { copiedID = nil } }
+                                }
+                            } label: {
+                                Image(systemName: copiedID == id ? "checkmark" : "doc.on.doc")
+                                    .font(.caption2)
+                                    .foregroundStyle(copiedID == id ? .green : .secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .transition(.opacity)
+                        }
                         if editing {
                             Button {
                                 renameText = store.customLabels[id] ?? ""
@@ -258,12 +280,8 @@ struct MenuView: View {
         )
         .cornerRadius(6)
         .contentShape(Rectangle())
-        .onTapGesture {
-            let text = parseTime(convertInput) != nil
-                ? convertedTime(parseTime(convertInput)!, to: isConvertSource(id) ? TimeZone.current.identifier : id)
-                : timeString(for: id)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { hoveredID = hovering ? id : nil }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(store.displayName(for: id)), \(timeString(for: id)), \(offsetLabel(for: id)), \(dayNightEmoji(for: id) == "sun.max.fill" ? "daytime" : "nighttime")")
@@ -278,9 +296,9 @@ struct MenuView: View {
                 Label("Label name", systemImage: "character.cursor.ibeam")
                 Spacer()
                 Picker("", selection: Bindable(store).nameStyle) {
-                    Text("None").tag("none")
-                    Text("City").tag("city")
-                    Text("Abbr").tag("abbreviation")
+                    Text("None").tag(NameStyle.none)
+                    Text("City").tag(NameStyle.city)
+                    Text("Abbr").tag(NameStyle.abbreviation)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
@@ -482,36 +500,6 @@ struct MenuView: View {
     }
 
     // MARK: - Quick Convert
-
-    private func parseTime(_ input: String) -> (Int, Int)? {
-        let s = input.trimmingCharacters(in: .whitespaces).lowercased()
-        if s.isEmpty { return nil }
-
-        var h: Int, m: Int
-        let isPM = s.hasSuffix("pm")
-        let isAM = s.hasSuffix("am")
-        let stripped = s.replacingOccurrences(of: "pm", with: "")
-                        .replacingOccurrences(of: "am", with: "")
-                        .trimmingCharacters(in: .whitespaces)
-
-        if stripped.contains(":") {
-            let parts = stripped.split(separator: ":")
-            guard parts.count == 2, let hr = Int(parts[0]), let mn = Int(parts[1]) else { return nil }
-            h = hr; m = mn
-        } else if let num = Int(stripped) {
-            if num >= 0 && num <= 23 && !isPM && !isAM && stripped.count <= 2 {
-                h = num; m = 0
-            } else if stripped.count == 3 || stripped.count == 4 {
-                h = num / 100; m = num % 100
-            } else { return nil }
-        } else { return nil }
-
-        if isPM && h < 12 { h += 12 }
-        if isAM && h == 12 { h = 0 }
-
-        guard h >= 0 && h < 24 && m >= 0 && m < 60 else { return nil }
-        return (h, m)
-    }
 
     private func convertedTime(_ time: (Int, Int), to id: String) -> String {
         let sourceID = store.convertSourceID ?? TimeZone.current.identifier

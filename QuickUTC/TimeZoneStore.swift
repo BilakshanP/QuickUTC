@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum NameStyle: String, CaseIterable {
+    case none
+    case city
+    case abbreviation
+}
+
 @Observable
 final class TimeZoneStore {
     static let utcID = "Etc/GMT"
@@ -13,8 +19,8 @@ final class TimeZoneStore {
     }
 
     // "none", "city", or "abbreviation"
-    var nameStyle: String {
-        didSet { UserDefaults.standard.set(nameStyle, forKey: "nameStyle") }
+    var nameStyle: NameStyle {
+        didSet { UserDefaults.standard.set(nameStyle.rawValue, forKey: "nameStyle") }
     }
 
     var showLabelOffset: Bool {
@@ -49,7 +55,7 @@ final class TimeZoneStore {
             self.selectedIDs = [Self.utcID]
         }
         self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? Self.utcID
-        self.nameStyle = UserDefaults.standard.string(forKey: "nameStyle") ?? "city"
+        self.nameStyle = NameStyle(rawValue: UserDefaults.standard.string(forKey: "nameStyle") ?? "city") ?? .city
         self.showLabelOffset = UserDefaults.standard.object(forKey: "showLabelOffset") as? Bool ?? false
         self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
         self.showOffset = UserDefaults.standard.object(forKey: "showOffset") as? Bool ?? true
