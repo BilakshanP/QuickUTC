@@ -20,6 +20,22 @@ final class TimeZoneStore {
         didSet { UserDefaults.standard.set(collapsed, forKey: "collapsed") }
     }
 
+    var use24h: Bool {
+        didSet { UserDefaults.standard.set(use24h, forKey: "use24h") }
+    }
+
+    var compactMode: Bool {
+        didSet { UserDefaults.standard.set(compactMode, forKey: "compactMode") }
+    }
+
+    var customLabels: [String: String] {
+        didSet {
+            if let data = try? JSONEncoder().encode(customLabels) {
+                UserDefaults.standard.set(data, forKey: "customLabels")
+            }
+        }
+    }
+
     init() {
         if let data = UserDefaults.standard.data(forKey: "selectedTimeZones"),
            let ids = try? JSONDecoder().decode([String].self, from: data), !ids.isEmpty {
@@ -30,6 +46,14 @@ final class TimeZoneStore {
         self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? "Etc/GMT"
         self.labelStyle = UserDefaults.standard.string(forKey: "labelStyle") ?? "both"
         self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
+        self.use24h = UserDefaults.standard.object(forKey: "use24h") as? Bool ?? true
+        self.compactMode = UserDefaults.standard.bool(forKey: "compactMode")
+        if let data = UserDefaults.standard.data(forKey: "customLabels"),
+           let labels = try? JSONDecoder().decode([String: String].self, from: data) {
+            self.customLabels = labels
+        } else {
+            self.customLabels = [:]
+        }
     }
 
     func add(_ id: String) {
@@ -90,7 +114,7 @@ final class TimeZoneStore {
         }
     }()
 
-    private static let cityNameOverrides: [String: String] = [
+    static let cityNameOverrides: [String: String] = [
         "Asia/Calcutta": "Kolkata",
         "Asia/Katmandu": "Kathmandu",
         "Asia/Saigon": "Ho Chi Minh",

@@ -4,11 +4,7 @@ import Combine
 struct ClockLabel: View {
     @Environment(TimeZoneStore.self) private var store
     @State private var now = Date()
-    @State private var formatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f
-    }()
+    @State private var formatter = DateFormatter()
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -27,12 +23,14 @@ struct ClockLabel: View {
             if !store.collapsed { now = Date() }
         }
         .onChange(of: store.primaryID) { configureFormatter() }
+        .onChange(of: store.use24h) { configureFormatter() }
         .onChange(of: store.collapsed) { if !store.collapsed { now = Date() } }
         .onAppear { configureFormatter() }
     }
 
     private func configureFormatter() {
         formatter.timeZone = TimeZone(identifier: store.primaryID) ?? .gmt
+        formatter.dateFormat = store.use24h ? "HH:mm" : "h:mm a"
     }
 
     private var formattedTime: String {
@@ -48,7 +46,7 @@ struct ClockLabel: View {
             return cityName
         case "abbreviation":
             return abbreviation
-        default: // "both"
+        default:
             return "\(cityName) \(utcOffset)"
         }
     }
@@ -62,8 +60,10 @@ struct ClockLabel: View {
     }
 
     private var cityName: String {
+        if let custom = store.customLabels[store.primaryID], !custom.isEmpty { return custom }
         if store.primaryID == "Etc/GMT" { return "GMT" }
-        return store.primaryID.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? store.primaryID
+        let raw = store.primaryID.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? store.primaryID
+        return TimeZoneStore.cityNameOverrides[store.primaryID] ?? raw
     }
 
     private var abbreviation: String {
