@@ -12,7 +12,7 @@ struct MenuView: View {
     @State private var renamingID: String?
     @State private var renameText = ""
 
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var timerCancellable: AnyCancellable?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -50,7 +50,16 @@ struct MenuView: View {
             }
         }
         .padding(.vertical, 12)
-        .onReceive(timer) { now = $0 }
+        .onAppear {
+            now = Date()
+            timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
+                .autoconnect()
+                .sink { now = $0 }
+        }
+        .onDisappear {
+            timerCancellable?.cancel()
+            timerCancellable = nil
+        }
     }
 
     // MARK: - Quick Convert
@@ -90,14 +99,23 @@ struct MenuView: View {
     private var clockList: some View {
         ForEach(Array(store.selectedIDs.enumerated()), id: \.element) { index, id in
             fullRow(index: index, id: id)
+                .draggable(id)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let from = items.first,
+                          let fromIdx = store.selectedIDs.firstIndex(of: from),
+                          let toIdx = store.selectedIDs.firstIndex(of: id),
+                          fromIdx != toIdx else { return false }
+                    withAnimation { store.selectedIDs.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: toIdx > fromIdx ? toIdx + 1 : toIdx) }
+                    sortLabel = "Custom"
+                    return true
+                }
         }
     }
 
     private func compactRow(id: String) -> some View {
         HStack {
             Image(systemName: dayNightEmoji(for: id))
-                .font(.caption)
-                .foregroundStyle(dayNightEmoji(for: id) == "sun.max.fill" ? .yellow : .indigo)
+                .font(.caption2)
             Text(displayName(for: id))
                 .font(.subheadline)
             Spacer()
@@ -148,10 +166,6 @@ struct MenuView: View {
                 .opacity(index == store.selectedIDs.count - 1 ? 0.3 : 1)
             }
 
-            Image(systemName: dayNightEmoji(for: id))
-                .font(.caption)
-                .foregroundStyle(dayNightEmoji(for: id) == "sun.max.fill" ? .yellow : .indigo)
-
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     if renamingID == id {
@@ -163,6 +177,8 @@ struct MenuView: View {
                         .font(.headline)
                         .frame(width: 120)
                     } else {
+                        Image(systemName: dayNightEmoji(for: id))
+                            .font(.caption2)
                         Text(displayName(for: id))
                             .font(.headline)
                         if editing {
@@ -178,24 +194,34 @@ struct MenuView: View {
                         }
                     }
                 }
-                HStack(spacing: 6) {
-                    Text(offsetLabel(for: id))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(timeDiff(for: id))
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                    Text(dateString(for: id))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if store.showOffset || relativeDayLabel(for: id) != nil {
+                    HStack(spacing: 4) {
+                        if store.showOffset {
+                            Text(offsetLabel(for: id))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let day = relativeDayLabel(for: id) {
+                            Text(day)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
 
             Spacer()
 
-            Text(timeString(for: id))
-                .font(.system(.title2, design: .rounded))
-                .monospacedDigit()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(timeString(for: id))
+                    .font(.system(.title2, design: .rounded))
+                    .monospacedDigit()
+                if store.showOffset {
+                    Text(timeDiff(for: id))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             if editing {
                 if id == store.primaryID {
@@ -222,6 +248,8 @@ struct MenuView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(displayName(for: id)), \(timeString(for: id)), \(offsetLabel(for: id)), \(dayNightEmoji(for: id) == "sun.max.fill" ? "daytime" : "nighttime")")
     }
 
     // MARK: - Edit Mode
@@ -247,14 +275,10 @@ struct MenuView: View {
 
             Divider().padding(.vertical, 8)
 
-            // Toggles
-            HStack {
-                Toggle("24h", isOn: Bindable(store).use24h)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-            }
-            .font(.caption)
-            .padding(.horizontal)
+            Toggle("Show UTC offset", isOn: Bindable(store).showOffset)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .padding(.horizontal)
 
             Divider().padding(.vertical, 8)
 
@@ -362,29 +386,20 @@ struct MenuView: View {
     // MARK: - Helpers
 
     private func displayName(for id: String) -> String {
-        if let custom = store.customLabels[id], !custom.isEmpty { return custom }
-        if id == "Etc/GMT" { return "GMT" }
-        let raw = id.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? id
-        return TimeZoneStore.cityNameOverrides[id] ?? raw
+        store.displayName(for: id)
     }
 
     private func timeString(for id: String) -> String {
-        let f = DateFormatter()
-        f.timeZone = TimeZone(identifier: id) ?? .gmt
-        f.dateFormat = store.use24h ? "HH:mm" : "h:mm a"
-        return f.string(from: now)
+        FormatterCache.shared.timeFormatter(for: id).string(from: now)
     }
 
     private func dateString(for id: String) -> String {
-        let f = DateFormatter()
-        f.timeZone = TimeZone(identifier: id) ?? .gmt
-        f.dateFormat = "EEE, MMM d"
-        return f.string(from: now)
+        FormatterCache.shared.dateFormatter(for: id).string(from: now)
     }
 
     private func offsetLabel(for id: String) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
-        let seconds = tz.secondsFromGMT()
+        let seconds = tz.secondsFromGMT(for: now)
         let sign = seconds >= 0 ? "+" : "-"
         let abs = abs(seconds)
         let offset = String(format: "UTC%@%d:%02d", sign, abs / 3600, (abs % 3600) / 60)
@@ -396,7 +411,7 @@ struct MenuView: View {
 
     private func timeDiff(for id: String) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
-        let diff = (tz.secondsFromGMT() - TimeZone.current.secondsFromGMT()) / 60
+        let diff = (tz.secondsFromGMT(for: now) - TimeZone.current.secondsFromGMT(for: now)) / 60
         if diff == 0 { return "" }
         let sign = diff > 0 ? "+" : ""
         let h = diff / 60
@@ -412,6 +427,17 @@ struct MenuView: View {
         return (hour >= 6 && hour < 18) ? "sun.max.fill" : "moon.fill"
     }
 
+    private func relativeDayLabel(for id: String) -> String? {
+        let localCal = Calendar.current
+        let localDay = localCal.startOfDay(for: now)
+        var zoneCal = Calendar.current
+        zoneCal.timeZone = TimeZone(identifier: id) ?? .gmt
+        let zoneDay = zoneCal.startOfDay(for: now)
+        let diff = localCal.dateComponents([.day], from: localDay, to: zoneDay).day ?? 0
+        if diff == 0 { return nil }
+        return diff > 0 ? "Tomorrow" : "Yesterday"
+    }
+
     // MARK: - Quick Convert
 
     private func parseTime(_ input: String) -> (Int, Int)? {
@@ -425,18 +451,28 @@ struct MenuView: View {
     private func convertedTime(_ time: (Int, Int), to id: String) -> String {
         guard let primaryTZ = TimeZone(identifier: store.primaryID),
               let targetTZ = TimeZone(identifier: id) else { return "" }
-        let diff = targetTZ.secondsFromGMT() - primaryTZ.secondsFromGMT()
-        var totalMinutes = time.0 * 60 + time.1 + diff / 60
-        totalMinutes = ((totalMinutes % 1440) + 1440) % 1440
-        let h = totalMinutes / 60
-        let m = totalMinutes % 60
-        if store.use24h {
-            return String(format: "%02d:%02d", h, m)
+        let diff = targetTZ.secondsFromGMT(for: now) - primaryTZ.secondsFromGMT(for: now)
+        let originalMinutes = time.0 * 60 + time.1
+        let totalMinutes = originalMinutes + diff / 60
+        let wrapped = ((totalMinutes % 1440) + 1440) % 1440
+        let h = wrapped / 60
+        let m = wrapped % 60
+
+        var result: String
+        let f = DateFormatter()
+        f.timeStyle = .short
+        // Build a date from h/m to format with system locale
+        var cal = Calendar.current
+        cal.timeZone = .gmt
+        if let date = cal.date(from: DateComponents(hour: h, minute: m)) {
+            result = f.string(from: date)
         } else {
-            let period = h >= 12 ? "PM" : "AM"
-            let h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h)
-            return String(format: "%d:%02d %@", h12, m, period)
+            result = String(format: "%02d:%02d", h, m)
         }
+
+        if totalMinutes >= 1440 { result += " +1d" }
+        else if totalMinutes < 0 { result += " −1d" }
+        return result
     }
 
     // MARK: - Sorting
@@ -461,4 +497,31 @@ struct MenuView: View {
         let dir = ascending ? "↑" : "↓"
         sortLabel = "\(key == .name ? "Name" : "UTC Offset") \(dir)"
     }
+}
+
+private final class FormatterCache {
+    static let shared = FormatterCache()
+
+    private var timeCache: [String: DateFormatter] = [:]
+    private var dateCache: [String: DateFormatter] = [:]
+
+    func timeFormatter(for id: String) -> DateFormatter {
+        if let f = timeCache[id] { return f }
+        let f = DateFormatter()
+        f.timeZone = TimeZone(identifier: id) ?? .gmt
+        f.timeStyle = .short
+        timeCache[id] = f
+        return f
+    }
+
+    func dateFormatter(for id: String) -> DateFormatter {
+        if let f = dateCache[id] { return f }
+        let f = DateFormatter()
+        f.timeZone = TimeZone(identifier: id) ?? .gmt
+        f.dateFormat = "EEE, MMM d"
+        dateCache[id] = f
+        return f
+    }
+
+    func invalidateTime() { timeCache.removeAll() }
 }

@@ -6,7 +6,7 @@ struct ClockLabel: View {
     @State private var now = Date()
     @State private var formatter = DateFormatter()
 
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @State private var timerCancellable: AnyCancellable?
 
     var body: some View {
         Group {
@@ -19,18 +19,29 @@ struct ClockLabel: View {
             }
         }
         .accessibilityLabel("Current time: \(formattedTime) \(suffix)")
-        .onReceive(timer) { _ in
-            if !store.collapsed { now = Date() }
-        }
         .onChange(of: store.primaryID) { configureFormatter() }
-        .onChange(of: store.use24h) { configureFormatter() }
-        .onChange(of: store.collapsed) { if !store.collapsed { now = Date() } }
-        .onAppear { configureFormatter() }
+        .onChange(of: store.collapsed) { startOrStopTimer() }
+        .onAppear { configureFormatter(); startOrStopTimer() }
+        .onDisappear { timerCancellable?.cancel(); timerCancellable = nil }
     }
 
     private func configureFormatter() {
         formatter.timeZone = TimeZone(identifier: store.primaryID) ?? .gmt
-        formatter.dateFormat = store.use24h ? "HH:mm" : "h:mm a"
+        formatter.timeStyle = .short
+    }
+
+    private func startOrStopTimer() {
+        if store.collapsed {
+            timerCancellable?.cancel()
+            timerCancellable = nil
+        } else {
+            now = Date()
+            if timerCancellable == nil {
+                timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
+                    .autoconnect()
+                    .sink { _ in now = Date() }
+            }
+        }
     }
 
     private var formattedTime: String {
@@ -38,7 +49,7 @@ struct ClockLabel: View {
     }
 
     private var suffix: String {
-        if store.primaryID == "Etc/GMT" { return "UTC" }
+        if store.primaryID == TimeZoneStore.utcID { return "UTC" }
         switch store.labelStyle {
         case "utcOffset":
             return utcOffset
@@ -60,10 +71,7 @@ struct ClockLabel: View {
     }
 
     private var cityName: String {
-        if let custom = store.customLabels[store.primaryID], !custom.isEmpty { return custom }
-        if store.primaryID == "Etc/GMT" { return "GMT" }
-        let raw = store.primaryID.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? store.primaryID
-        return TimeZoneStore.cityNameOverrides[store.primaryID] ?? raw
+        store.displayName(for: store.primaryID)
     }
 
     private var abbreviation: String {

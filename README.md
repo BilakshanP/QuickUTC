@@ -23,7 +23,7 @@ The app registers itself as a Login Item on first launch.
 
 ## Requirements
 
-- macOS 13.0+
+- macOS 14.0+
 - Xcode 15+
 
 ## License

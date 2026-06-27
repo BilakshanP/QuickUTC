@@ -3,6 +3,8 @@ import Combine
 
 @Observable
 final class TimeZoneStore {
+    static let utcID = "Etc/GMT"
+
     var selectedIDs: [String] {
         didSet { save() }
     }
@@ -28,6 +30,10 @@ final class TimeZoneStore {
         didSet { UserDefaults.standard.set(compactMode, forKey: "compactMode") }
     }
 
+    var showOffset: Bool {
+        didSet { UserDefaults.standard.set(showOffset, forKey: "showOffset") }
+    }
+
     var customLabels: [String: String] {
         didSet {
             if let data = try? JSONEncoder().encode(customLabels) {
@@ -41,13 +47,14 @@ final class TimeZoneStore {
            let ids = try? JSONDecoder().decode([String].self, from: data), !ids.isEmpty {
             self.selectedIDs = ids
         } else {
-            self.selectedIDs = ["Etc/GMT"]
+            self.selectedIDs = [Self.utcID]
         }
-        self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? "Etc/GMT"
+        self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? Self.utcID
         self.labelStyle = UserDefaults.standard.string(forKey: "labelStyle") ?? "both"
         self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
         self.use24h = UserDefaults.standard.object(forKey: "use24h") as? Bool ?? true
         self.compactMode = UserDefaults.standard.bool(forKey: "compactMode")
+        self.showOffset = UserDefaults.standard.object(forKey: "showOffset") as? Bool ?? true
         if let data = UserDefaults.standard.data(forKey: "customLabels"),
            let labels = try? JSONDecoder().decode([String: String].self, from: data) {
             self.customLabels = labels
@@ -64,7 +71,7 @@ final class TimeZoneStore {
 
     func remove(_ id: String) {
         selectedIDs.removeAll { $0 == id }
-        if primaryID == id { primaryID = selectedIDs.first ?? "Etc/GMT" }
+        if primaryID == id { primaryID = selectedIDs.first ?? Self.utcID }
     }
 
     func moveUp(_ index: Int) {
@@ -85,6 +92,13 @@ final class TimeZoneStore {
         selectedIDs.contains(id)
     }
 
+    func displayName(for id: String) -> String {
+        if let custom = customLabels[id], !custom.isEmpty { return custom }
+        if id == Self.utcID { return "GMT" }
+        let raw = id.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? id
+        return Self.cityNameOverrides[id] ?? raw
+    }
+
     private func save() {
         if let data = try? JSONEncoder().encode(selectedIDs) {
             UserDefaults.standard.set(data, forKey: "selectedTimeZones")
@@ -95,7 +109,7 @@ final class TimeZoneStore {
 
     // MARK: - Static Data
 
-    static let allZones: [TimeZoneResult] = {
+    static func allZones(for date: Date = Date()) -> [TimeZoneResult] {
         TimeZone.knownTimeZoneIdentifiers.compactMap { id in
             guard let tz = TimeZone(identifier: id) else { return nil }
             let rawCity = id.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? id
@@ -103,16 +117,16 @@ final class TimeZoneStore {
             return TimeZoneResult(
                 id: id,
                 city: city,
-                offset: offsetString(for: tz),
+                offset: offsetString(for: tz, at: date),
                 aliases: cityAliases[id] ?? []
             )
         }
         .sorted {
-            let s1 = TimeZone(identifier: $0.id)?.secondsFromGMT() ?? 0
-            let s2 = TimeZone(identifier: $1.id)?.secondsFromGMT() ?? 0
+            let s1 = TimeZone(identifier: $0.id)?.secondsFromGMT(for: date) ?? 0
+            let s2 = TimeZone(identifier: $1.id)?.secondsFromGMT(for: date) ?? 0
             return s1 == s2 ? $0.city < $1.city : s1 < s2
         }
-    }()
+    }
 
     static let cityNameOverrides: [String: String] = [
         "Asia/Calcutta": "Kolkata",
@@ -122,17 +136,18 @@ final class TimeZoneStore {
     ]
 
     func search(_ query: String) -> [TimeZoneResult] {
-        if query.isEmpty { return Self.allZones }
+        let zones = Self.allZones()
+        if query.isEmpty { return zones }
         let q = query.lowercased()
-        return Self.allZones.filter {
+        return zones.filter {
             $0.id.lowercased().contains(q) ||
             $0.city.lowercased().contains(q) ||
             $0.aliases.contains { $0.lowercased().contains(q) }
         }
     }
 
-    private static func offsetString(for tz: TimeZone) -> String {
-        let seconds = tz.secondsFromGMT()
+    static func offsetString(for tz: TimeZone, at date: Date = Date()) -> String {
+        let seconds = tz.secondsFromGMT(for: date)
         let sign = seconds >= 0 ? "+" : "-"
         let abs = abs(seconds)
         return String(format: "UTC%@%02d:%02d", sign, abs / 3600, (abs % 3600) / 60)
