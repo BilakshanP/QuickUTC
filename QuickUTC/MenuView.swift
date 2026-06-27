@@ -28,6 +28,7 @@ struct MenuView: View {
 
                 Button { NSApplication.shared.terminate(nil) } label: {
                     Image(systemName: "power")
+                        .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
                 .help("Quit QuickUTC")
