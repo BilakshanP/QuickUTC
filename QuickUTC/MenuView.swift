@@ -9,6 +9,7 @@ struct MenuView: View {
     @State private var editing = false
     @State private var sortLabel = "Custom"
     @State private var convertInput = ""
+    @State private var convertSourceID: String?
     @State private var renamingID: String?
     @State private var renameText = ""
 
@@ -64,34 +65,43 @@ struct MenuView: View {
 
     // MARK: - Quick Convert
 
-    private var quickConvertSection: some View {
-        VStack(spacing: 4) {
-            HStack {
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("Type time (e.g. 14:30)", text: $convertInput)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 4)
+    private var convertResultIDs: [String] {
+        var ids = store.selectedIDs
+        let local = TimeZone.current.identifier
+        if !ids.contains(local) { ids.insert(local, at: 0) }
+        return ids
+    }
 
-            if let parsed = parseTime(convertInput) {
-                ForEach(store.selectedIDs, id: \.self) { id in
-                    HStack {
-                        Text(displayName(for: id))
-                            .font(.caption)
-                        Spacer()
-                        Text(convertedTime(parsed, to: id))
-                            .font(.caption)
-                            .monospacedDigit()
-                    }
-                    .padding(.horizontal, 24)
-                }
-                Divider().padding(.vertical, 4)
-            }
+    private var convertSourceIDs: [String] {
+        var ids = [TimeZone.current.identifier]
+        for id in store.selectedIDs where id != TimeZone.current.identifier {
+            ids.append(id)
         }
+        return ids
+    }
+
+    private var quickConvertSection: some View {
+        HStack {
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Type time (e.g. 14:30)", text: $convertInput)
+                .textFieldStyle(.roundedBorder)
+                .font(.caption)
+            Picker("", selection: Binding(
+                get: { convertSourceID ?? TimeZone.current.identifier },
+                set: { convertSourceID = $0 }
+            )) {
+                ForEach(convertSourceIDs, id: \.self) { id in
+                    Text(id == TimeZone.current.identifier ? "Local" : displayName(for: id)).tag(id)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 100)
+            .font(.caption)
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Clock List
@@ -179,8 +189,14 @@ struct MenuView: View {
                     } else {
                         Image(systemName: dayNightEmoji(for: id))
                             .font(.caption2)
-                        Text(displayName(for: id))
-                            .font(.headline)
+                        if isConvertSource(id) {
+                            Text("Local")
+                                .font(.headline)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text(displayName(for: id))
+                                .font(.headline)
+                        }
                         if editing {
                             Button {
                                 renameText = store.customLabels[id] ?? ""
@@ -195,13 +211,14 @@ struct MenuView: View {
                     }
                 }
                 if store.showOffset || relativeDayLabel(for: id) != nil {
+                    let displayID = isConvertSource(id) ? TimeZone.current.identifier : id
                     HStack(spacing: 4) {
                         if store.showOffset {
-                            Text(offsetLabel(for: id))
+                            Text(offsetLabel(for: displayID))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        if let day = relativeDayLabel(for: id) {
+                        if let day = relativeDayLabel(for: displayID) {
                             Text(day)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -213,11 +230,27 @@ struct MenuView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(timeString(for: id))
-                    .font(.system(.title2, design: .rounded))
-                    .monospacedDigit()
+                if let parsed = parseTime(convertInput) {
+                    if isConvertSource(id) {
+                        Text(convertedTime(parsed, to: TimeZone.current.identifier))
+                            .font(.system(.title2, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.green)
+                    } else {
+                        Text(convertedTime(parsed, to: id))
+                            .font(.system(.title2, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.orange)
+                    }
+                } else {
+                    Text(timeString(for: id))
+                        .font(.system(.title2, design: .rounded))
+                        .monospacedDigit()
+                }
                 if store.showOffset {
-                    Text(timeDiff(for: id))
+                    let displayID = isConvertSource(id) ? TimeZone.current.identifier : id
+                    let relativeToID = parseTime(convertInput) != nil ? (convertSourceID ?? TimeZone.current.identifier) : nil
+                    Text(timeDiff(for: displayID, relativeTo: relativeToID))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -275,10 +308,14 @@ struct MenuView: View {
 
             Divider().padding(.vertical, 8)
 
-            Toggle("Show UTC offset", isOn: Bindable(store).showOffset)
-                .toggleStyle(.checkbox)
-                .font(.caption)
-                .padding(.horizontal)
+            HStack {
+                Label("Show UTC offset", systemImage: "clock")
+                Spacer()
+                Toggle("", isOn: Bindable(store).showOffset)
+                    .toggleStyle(.checkbox)
+                    .labelsHidden()
+            }
+            .padding(.horizontal)
 
             Divider().padding(.vertical, 8)
 
@@ -389,6 +426,12 @@ struct MenuView: View {
         store.displayName(for: id)
     }
 
+    private func isConvertSource(_ id: String) -> Bool {
+        guard parseTime(convertInput) != nil else { return false }
+        let source = convertSourceID ?? TimeZone.current.identifier
+        return id == source
+    }
+
     private func timeString(for id: String) -> String {
         FormatterCache.shared.timeFormatter(for: id).string(from: now)
     }
@@ -409,9 +452,10 @@ struct MenuView: View {
         return offset
     }
 
-    private func timeDiff(for id: String) -> String {
+    private func timeDiff(for id: String, relativeTo refID: String? = nil) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
-        let diff = (tz.secondsFromGMT(for: now) - TimeZone.current.secondsFromGMT(for: now)) / 60
+        let ref = refID.flatMap { TimeZone(identifier: $0) } ?? TimeZone.current
+        let diff = (tz.secondsFromGMT(for: now) - ref.secondsFromGMT(for: now)) / 60
         if diff == 0 { return "" }
         let sign = diff > 0 ? "+" : ""
         let h = diff / 60
@@ -448,10 +492,23 @@ struct MenuView: View {
         return (h, m)
     }
 
+    private func formatInputTime(_ time: (Int, Int)) -> String {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        f.timeZone = .gmt
+        var cal = Calendar.current
+        cal.timeZone = .gmt
+        if let date = cal.date(from: DateComponents(hour: time.0, minute: time.1)) {
+            return f.string(from: date)
+        }
+        return String(format: "%02d:%02d", time.0, time.1)
+    }
+
     private func convertedTime(_ time: (Int, Int), to id: String) -> String {
-        guard let primaryTZ = TimeZone(identifier: store.primaryID),
+        let sourceID = convertSourceID ?? TimeZone.current.identifier
+        guard let sourceTZ = TimeZone(identifier: sourceID),
               let targetTZ = TimeZone(identifier: id) else { return "" }
-        let diff = targetTZ.secondsFromGMT(for: now) - primaryTZ.secondsFromGMT(for: now)
+        let diff = targetTZ.secondsFromGMT(for: now) - sourceTZ.secondsFromGMT(for: now)
         let originalMinutes = time.0 * 60 + time.1
         let totalMinutes = originalMinutes + diff / 60
         let wrapped = ((totalMinutes % 1440) + 1440) % 1440
@@ -461,7 +518,7 @@ struct MenuView: View {
         var result: String
         let f = DateFormatter()
         f.timeStyle = .short
-        // Build a date from h/m to format with system locale
+        f.timeZone = .gmt
         var cal = Calendar.current
         cal.timeZone = .gmt
         if let date = cal.date(from: DateComponents(hour: h, minute: m)) {
