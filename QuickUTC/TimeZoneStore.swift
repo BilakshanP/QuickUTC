@@ -13,9 +13,13 @@ final class TimeZoneStore {
         didSet { UserDefaults.standard.set(primaryID, forKey: "primaryTimeZone") }
     }
 
-    // "utcOffset" or "cityName"
-    var labelStyle: String {
-        didSet { UserDefaults.standard.set(labelStyle, forKey: "labelStyle") }
+    // "none", "city", or "abbreviation"
+    var nameStyle: String {
+        didSet { UserDefaults.standard.set(nameStyle, forKey: "nameStyle") }
+    }
+
+    var showLabelOffset: Bool {
+        didSet { UserDefaults.standard.set(showLabelOffset, forKey: "showLabelOffset") }
     }
 
     var collapsed: Bool {
@@ -34,6 +38,10 @@ final class TimeZoneStore {
         }
     }
 
+    var convertSourceID: String? {
+        didSet { UserDefaults.standard.set(convertSourceID, forKey: "convertSourceTZ") }
+    }
+
     init() {
         if let data = UserDefaults.standard.data(forKey: "selectedTimeZones"),
            let ids = try? JSONDecoder().decode([String].self, from: data), !ids.isEmpty {
@@ -42,7 +50,8 @@ final class TimeZoneStore {
             self.selectedIDs = [Self.utcID]
         }
         self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? Self.utcID
-        self.labelStyle = UserDefaults.standard.string(forKey: "labelStyle") ?? "both"
+        self.nameStyle = UserDefaults.standard.string(forKey: "nameStyle") ?? "city"
+        self.showLabelOffset = UserDefaults.standard.object(forKey: "showLabelOffset") as? Bool ?? false
         self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
         self.showOffset = UserDefaults.standard.object(forKey: "showOffset") as? Bool ?? true
         if let data = UserDefaults.standard.data(forKey: "customLabels"),
@@ -51,6 +60,7 @@ final class TimeZoneStore {
         } else {
             self.customLabels = [:]
         }
+        self.convertSourceID = UserDefaults.standard.string(forKey: "convertSourceTZ")
     }
 
     func add(_ id: String) {
@@ -99,8 +109,15 @@ final class TimeZoneStore {
 
     // MARK: - Static Data
 
+    private static var _cachedZones: [TimeZoneResult]?
+    private static var _cachedDate: Date?
+
     static func allZones(for date: Date = Date()) -> [TimeZoneResult] {
-        TimeZone.knownTimeZoneIdentifiers.compactMap { id in
+        if let cached = _cachedZones, let cachedDate = _cachedDate,
+           abs(cachedDate.timeIntervalSince(date)) < 60 {
+            return cached
+        }
+        let zones = TimeZone.knownTimeZoneIdentifiers.compactMap { id -> TimeZoneResult? in
             guard let tz = TimeZone(identifier: id) else { return nil }
             let rawCity = id.components(separatedBy: "/").last?.replacingOccurrences(of: "_", with: " ") ?? id
             let city = cityNameOverrides[id] ?? rawCity
@@ -116,6 +133,9 @@ final class TimeZoneStore {
             let s2 = TimeZone(identifier: $1.id)?.secondsFromGMT(for: date) ?? 0
             return s1 == s2 ? $0.city < $1.city : s1 < s2
         }
+        _cachedZones = zones
+        _cachedDate = date
+        return zones
     }
 
     static let cityNameOverrides: [String: String] = [
@@ -145,7 +165,6 @@ final class TimeZoneStore {
 
     // Common city aliases → timezone identifiers
     static let cityAliases: [String: [String]] = [
-        "Asia/Kolkata": ["Mumbai", "Delhi", "Bangalore", "Bengaluru", "Chennai", "Hyderabad", "India", "IST", "Kolkata"],
         "Asia/Calcutta": ["Mumbai", "Delhi", "Bangalore", "Bengaluru", "Chennai", "Hyderabad", "India", "IST", "Kolkata"],
         "America/New_York": ["NYC", "Manhattan", "Brooklyn", "EST", "EDT"],
         "America/Los_Angeles": ["LA", "San Francisco", "SF", "Hollywood", "PST", "PDT"],

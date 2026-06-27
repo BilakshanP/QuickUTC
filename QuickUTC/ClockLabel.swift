@@ -50,24 +50,19 @@ struct ClockLabel: View {
 
     private var suffix: String {
         if store.primaryID == TimeZoneStore.utcID { return "UTC" }
-        switch store.labelStyle {
-        case "utcOffset":
-            return utcOffset
-        case "cityName":
-            return cityName
-        case "abbreviation":
-            return abbreviation
-        default:
-            return "\(cityName) \(utcOffset)"
+        var parts: [String] = []
+        switch store.nameStyle {
+        case "city": parts.append(cityName)
+        case "abbreviation": parts.append(abbreviation)
+        default: break
         }
+        if store.showLabelOffset { parts.append(utcOffset) }
+        return parts.joined(separator: " ")
     }
 
     private var utcOffset: String {
         guard let tz = TimeZone(identifier: store.primaryID) else { return "UTC+00:00" }
-        let seconds = tz.secondsFromGMT(for: now)
-        let sign = seconds >= 0 ? "+" : "-"
-        let abs = abs(seconds)
-        return String(format: "UTC%@%02d:%02d", sign, abs / 3600, (abs % 3600) / 60)
+        return TimeZoneStore.offsetString(for: tz, at: now)
     }
 
     private var cityName: String {
@@ -75,13 +70,25 @@ struct ClockLabel: View {
     }
 
     private var abbreviation: String {
-        Self.abbreviationsByID[store.primaryID] ?? cityName
+        guard let tz = TimeZone(identifier: store.primaryID) else { return cityName }
+        let isDST = tz.isDaylightSavingTime(for: now)
+        let abbrs = Self.abbreviationsForID[store.primaryID] ?? []
+        let match = abbrs.first { isDST ? $0.contains("D") : !$0.contains("D") }
+            ?? abbrs.first
+        return match ?? cityName
     }
 
-    private static let abbreviationsByID: [String: String] = {
-        var map: [String: String] = [:]
-        for (abbr, id) in TimeZone.abbreviationDictionary {
-            map[id] = abbr
+    private static let abbreviationsForID: [String: [String]] = {
+        var map: [String: [String]] = [:]
+        // From system dictionary
+        for (abbr, id) in TimeZone.abbreviationDictionary where !abbr.hasPrefix("GMT") {
+            map[id, default: []].append(abbr)
+        }
+        // From cityAliases — pick short uppercase strings (abbreviations)
+        for (id, aliases) in TimeZoneStore.cityAliases {
+            if map[id] != nil { continue }
+            let abbrs = aliases.filter { $0.count <= 4 && $0 == $0.uppercased() }
+            if !abbrs.isEmpty { map[id] = abbrs }
         }
         return map
     }()
