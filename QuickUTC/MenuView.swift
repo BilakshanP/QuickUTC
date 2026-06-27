@@ -115,7 +115,8 @@ struct MenuView: View {
 
     @ViewBuilder
     private func fullRow(index: Int, id: String) -> some View {
-        let dayLabel = relativeDayLabel(for: id)
+        let displayID = isConvertSource(id) ? TimeZone.current.identifier : id
+        let dayLabel = relativeDayLabel(for: displayID)
         HStack {
             if editing {
                 VStack(spacing: 2) {
@@ -182,14 +183,13 @@ struct MenuView: View {
                     }
                 }
                 if store.showOffset || dayLabel != nil {
-                    let displayID = isConvertSource(id) ? TimeZone.current.identifier : id
                     HStack(spacing: 4) {
                         if store.showOffset {
                             Text(offsetLabel(for: displayID))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        if let day = relativeDayLabel(for: displayID) {
+                        if let day = dayLabel {
                             Text(day)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -219,7 +219,6 @@ struct MenuView: View {
                         .monospacedDigit()
                 }
                 if store.showOffset {
-                    let displayID = isConvertSource(id) ? TimeZone.current.identifier : id
                     let relativeToID = parseTime(convertInput) != nil ? (store.convertSourceID ?? TimeZone.current.identifier) : nil
                     Text(timeDiff(for: displayID, relativeTo: relativeToID))
                         .font(.caption)
@@ -385,10 +384,10 @@ struct MenuView: View {
                                 Text(zone.offset)
                                     .monospacedDigit()
                                     .frame(width: 90, alignment: .leading)
-                                Text(zone.city)
+                                Text(highlighted(zone.city, query: search))
                                     .lineLimit(1)
                                 if !zone.aliases.isEmpty {
-                                    Text("(\(zone.aliases.prefix(2).joined(separator: ", ")))")
+                                    Text(highlightedAliases(zone.aliases.prefix(2).map { $0 }, query: search))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -412,6 +411,27 @@ struct MenuView: View {
 
     // MARK: - Helpers
 
+    private func highlighted(_ text: String, query: String) -> AttributedString {
+        var result = AttributedString(text)
+        guard !query.isEmpty,
+              let range = text.localizedStandardRange(of: query) else { return result }
+        let attrRange = AttributedString.Index(range.lowerBound, within: result)!
+            ..< AttributedString.Index(range.upperBound, within: result)!
+        result[attrRange].foregroundColor = .accentColor
+        result[attrRange].font = .body.bold()
+        return result
+    }
+
+    private func highlightedAliases(_ aliases: [String], query: String) -> AttributedString {
+        var result = AttributedString("(")
+        for (i, alias) in aliases.enumerated() {
+            if i > 0 { result += AttributedString(", ") }
+            result += highlighted(alias, query: query)
+        }
+        result += AttributedString(")")
+        return result
+    }
+
     private func isConvertSource(_ id: String) -> Bool {
         guard parseTime(convertInput) != nil else { return false }
         let source = store.convertSourceID ?? TimeZone.current.identifier
@@ -425,10 +445,7 @@ struct MenuView: View {
 
     private func offsetLabel(for id: String) -> String {
         guard let tz = TimeZone(identifier: id) else { return "" }
-        let seconds = tz.secondsFromGMT(for: now)
-        let sign = seconds >= 0 ? "+" : "-"
-        let abs = abs(seconds)
-        let offset = String(format: "UTC%@%d:%02d", sign, abs / 3600, (abs % 3600) / 60)
+        let offset = TimeZoneStore.offsetString(for: tz, at: now)
         if let abbr = tz.abbreviation(for: now), !abbr.hasPrefix("GMT") {
             return "\(abbr) \(offset)"
         }
