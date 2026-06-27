@@ -110,53 +110,39 @@ struct MenuView: View {
     private var clockList: some View {
         ForEach(Array(store.selectedIDs.enumerated()), id: \.element) { index, id in
             fullRow(index: index, id: id)
-                .draggable(id)
-                .dropDestination(for: String.self) { items, _ in
-                    guard let from = items.first,
-                          let fromIdx = store.selectedIDs.firstIndex(of: from),
-                          let toIdx = store.selectedIDs.firstIndex(of: id),
-                          fromIdx != toIdx else { return false }
-                    withAnimation { store.selectedIDs.move(fromOffsets: IndexSet(integer: fromIdx), toOffset: toIdx > fromIdx ? toIdx + 1 : toIdx) }
-                    sortLabel = "Custom"
-                    return true
-                }
         }
     }
 
     private func fullRow(index: Int, id: String) -> some View {
         HStack {
             if editing {
-                Button {
-                    withAnimation {
-                        let i = store.selectedIDs.firstIndex(of: id)!
-                        if i > 0 { store.selectedIDs.swapAt(i, i - 1) }
+                VStack(spacing: 2) {
+                    Button {
+                        withAnimation { store.moveUp(index) }
+                        sortLabel = "Custom"
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.caption2)
+                            .frame(width: 22, height: 16)
+                            .contentShape(Rectangle())
                     }
-                    sortLabel = "Custom"
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(index == 0)
-                .opacity(index == 0 ? 0.3 : 1)
+                    .buttonStyle(HoverButtonStyle())
+                    .disabled(index == 0)
+                    .opacity(index == 0 ? 0.3 : 1)
 
-                Button {
-                    withAnimation {
-                        let i = store.selectedIDs.firstIndex(of: id)!
-                        if i < store.selectedIDs.count - 1 { store.selectedIDs.swapAt(i, i + 1) }
+                    Button {
+                        withAnimation { store.moveDown(index) }
+                        sortLabel = "Custom"
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                            .frame(width: 22, height: 16)
+                            .contentShape(Rectangle())
                     }
-                    sortLabel = "Custom"
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.caption)
-                        .frame(width: 20, height: 20)
-                        .contentShape(Rectangle())
+                    .buttonStyle(HoverButtonStyle())
+                    .disabled(index == store.selectedIDs.count - 1)
+                    .opacity(index == store.selectedIDs.count - 1 ? 0.3 : 1)
                 }
-                .buttonStyle(.plain)
-                .disabled(index == store.selectedIDs.count - 1)
-                .opacity(index == store.selectedIDs.count - 1 ? 0.3 : 1)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -571,4 +557,17 @@ private final class FormatterCache {
     }
 
     func invalidateTime() { timeCache.removeAll() }
+}
+
+private struct HoverButtonStyle: ButtonStyle {
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(hovering || configuration.isPressed ? Color.primary.opacity(0.1) : Color.clear)
+            )
+            .onHover { hovering = $0 }
+    }
 }
