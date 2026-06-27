@@ -13,13 +13,22 @@ struct ClockLabel: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Text("\(formattedTime) \(suffix)")
-            .monospacedDigit()
-            .font(.system(.body, design: .rounded))
-            .accessibilityLabel("Current time: \(formattedTime) \(suffix)")
-            .onReceive(timer) { now = $0 }
-            .onChange(of: store.primaryID) { configureFormatter() }
-            .onAppear { configureFormatter() }
+        Group {
+            if store.collapsed {
+                Image(systemName: "globe")
+            } else {
+                Text("\(formattedTime) \(suffix)")
+                    .monospacedDigit()
+                    .font(.system(.body, design: .rounded))
+            }
+        }
+        .accessibilityLabel("Current time: \(formattedTime) \(suffix)")
+        .onReceive(timer) { _ in
+            if !store.collapsed { now = Date() }
+        }
+        .onChange(of: store.primaryID) { configureFormatter() }
+        .onChange(of: store.collapsed) { if !store.collapsed { now = Date() } }
+        .onAppear { configureFormatter() }
     }
 
     private func configureFormatter() {

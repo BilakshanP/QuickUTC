@@ -16,6 +16,10 @@ final class TimeZoneStore {
         didSet { UserDefaults.standard.set(labelStyle, forKey: "labelStyle") }
     }
 
+    var collapsed: Bool {
+        didSet { UserDefaults.standard.set(collapsed, forKey: "collapsed") }
+    }
+
     init() {
         if let data = UserDefaults.standard.data(forKey: "selectedTimeZones"),
            let ids = try? JSONDecoder().decode([String].self, from: data), !ids.isEmpty {
@@ -25,6 +29,7 @@ final class TimeZoneStore {
         }
         self.primaryID = UserDefaults.standard.string(forKey: "primaryTimeZone") ?? "Etc/GMT"
         self.labelStyle = UserDefaults.standard.string(forKey: "labelStyle") ?? "both"
+        self.collapsed = UserDefaults.standard.bool(forKey: "collapsed")
     }
 
     func add(_ id: String) {

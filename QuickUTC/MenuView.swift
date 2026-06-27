@@ -20,6 +20,12 @@ struct MenuView: View {
                     .font(.headline)
                 Spacer()
 
+                Button { store.collapsed.toggle() } label: {
+                    Image(systemName: store.collapsed ? "eye.slash" : "eye")
+                }
+                .buttonStyle(.plain)
+                .help(store.collapsed ? "Show Clock" : "Hide Clock")
+
                 Menu {
                     Button { sortBy(.name, ascending: true) } label: { Label("Name ↑", systemImage: "textformat") }
                     Button { sortBy(.name, ascending: false) } label: { Label("Name ↓", systemImage: "textformat") }
@@ -64,6 +70,7 @@ struct MenuView: View {
                 Text("Menu bar label:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Spacer()
                 Picker("", selection: Bindable(store).labelStyle) {
                     Text("UTC+").tag("utcOffset")
                     Text("City").tag("cityName")
